@@ -5,6 +5,28 @@ SPHINXPIPPATH=doc/.sphinx/venv/bin/pip
 ARCH=$(shell if [ "$$(uname -m)" = "x86_64" ]; then echo "amd64"; else echo "arm64"; fi)
 OSNAME=$(shell grep "ImageId=" mkosi.conf | cut -d '=' -f 2)
 RELEASE=$(shell ls mkosi.output/*.efi 2>/dev/null | sed -e "s/.*_//g" -e "s/.efi//g" | sort -n | tail -1)
+KERNEL_VARIANT ?= base
+KERNEL_PACKAGE ?= linux-image-zabbly
+KERNEL_HEADERS_PACKAGE ?= linux-zabbly
+
+.PHONY: configure-kernel-variant
+configure-kernel-variant:
+	KERNEL_VARIANT="$(KERNEL_VARIANT)" \
+	KERNEL_PACKAGE="$(KERNEL_PACKAGE)" \
+	KERNEL_HEADERS_PACKAGE="$(KERNEL_HEADERS_PACKAGE)" \
+	./scripts/build-kernel-variant.sh
+
+.PHONY: build-cachyos-v3
+build-cachyos-v3:
+	$(MAKE) build KERNEL_VARIANT=x86-64-v3 KERNEL_PACKAGE=linux-cachyos-server KERNEL_HEADERS_PACKAGE=linux-cachyos-headers
+
+.PHONY: build-cachyos-v4
+build-cachyos-v4:
+	$(MAKE) build KERNEL_VARIANT=x86-64-v4 KERNEL_PACKAGE=linux-cachyos-server KERNEL_HEADERS_PACKAGE=linux-cachyos-headers
+
+.PHONY: build-cachyos-zen4
+build-cachyos-zen4:
+	$(MAKE) build KERNEL_VARIANT=zen4 KERNEL_PACKAGE=linux-cachyos-server KERNEL_HEADERS_PACKAGE=linux-cachyos-headers
 
 .PHONY: default
 default: build
@@ -100,7 +122,7 @@ endif
 	cp incus-osd/certs/files/secureboot-DB-*.crt mkosi.images/base/mkosi.extra/usr/lib/verity.d/
 
 .PHONY: build
-build: inject-system-certs incus-osd flasher-tool generate-manifests image-publisher initrd-deb-package microcode-metapackage-deb-package
+build: configure-kernel-variant inject-system-certs incus-osd flasher-tool generate-manifests image-publisher initrd-deb-package microcode-metapackage-deb-package
 	cd app-build/ && ./build-applications.py
 
 	sudo rm -Rf mkosi.output/base* mkosi.output/debug* mkosi.output/incus*
