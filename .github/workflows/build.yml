@@ -14,9 +14,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch:
-          - amd64
-          - arm64
+        include:
+          - arch: amd64
+            kernel_variant: base
+            kernel_package: linux-image-zabbly
+            kernel_headers_package: linux-zabbly
+          - arch: amd64
+            kernel_variant: x86-64-v3
+            kernel_package: linux-cachyos-server
+            kernel_headers_package: linux-cachyos-headers
+          - arch: amd64
+            kernel_variant: x86-64-v4
+            kernel_package: linux-cachyos-server
+            kernel_headers_package: linux-cachyos-headers
+          - arch: amd64
+            kernel_variant: zen4
+            kernel_package: linux-cachyos-server
+            kernel_headers_package: linux-cachyos-headers
+          - arch: arm64
+            kernel_variant: base
+            kernel_package: linux-image-zabbly
+            kernel_headers_package: linux-zabbly
     timeout-minutes: 90
     runs-on:
       - self-hosted
@@ -64,19 +82,23 @@ jobs:
           chmod 600 mkosi.key
 
       - name: Build the images
+        env:
+          KERNEL_VARIANT: ${{ matrix.kernel_variant }}
+          KERNEL_PACKAGE: ${{ matrix.kernel_package }}
+          KERNEL_HEADERS_PACKAGE: ${{ matrix.kernel_headers_package }}
         run: |
           export PATH="${PATH}:/${HOME}/.local/bin"
 
           (
             cat << EOF
           #!/bin/sh
-          echo ${{ github.ref_name }}
+          echo ${{ github.ref_name }}-${{ matrix.kernel_variant }}
           EOF
           ) > mkosi.version
 
           make build-iso
 
-          ./scripts/prepare-upload.sh ${{ github.ref_name }}
+          ./scripts/prepare-upload.sh ${{ github.ref_name }}-${{ matrix.kernel_variant }}
 
       - name: Compress the files
         run: |
@@ -91,7 +113,7 @@ jobs:
           UPLOAD_HOST: ${{ secrets.UPLOAD_HOST }}
         if: ${{ env.UPLOAD_HOST == '' }}
         with:
-          name: image-${{ matrix.arch }}
+          name: image-${{ matrix.arch }}-${{ matrix.kernel_variant }}
           path: upload/
 
       - name: Upload binaries to local server
@@ -107,5 +129,5 @@ jobs:
 
           OSNAME=$(grep "ImageId=" mkosi.conf | cut -d '=' -f 2)
 
-          zip -j ${OSNAME}-${{ github.ref_name }}-${{ matrix.arch }}.zip upload/*
-          scp ${OSNAME}-${{ github.ref_name }}-${{ matrix.arch }}.zip ${{ secrets.UPLOAD_USERNAME }}@${{ secrets.UPLOAD_HOST }}:${{ secrets.UPLOAD_PATH }}
+          zip -j ${OSNAME}-${{ github.ref_name }}-${{ matrix.arch }}-${{ matrix.kernel_variant }}.zip upload/*
+          scp ${OSNAME}-${{ github.ref_name }}-${{ matrix.arch }}-${{ matrix.kernel_variant }}.zip ${{ secrets.UPLOAD_USERNAME }}@${{ secrets.UPLOAD_HOST }}:${{ secrets.UPLOAD_PATH }}
